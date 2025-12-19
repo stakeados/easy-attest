@@ -1,0 +1,47 @@
+specVersion: 0.0.5
+schema:
+  file: schema.graphql
+dataSources:
+  - kind: ethereum
+    name: SchemaRegistry
+    network: base
+    source:
+      address: "0x4200000000000000000000000000000000000020"
+      abi: SchemaRegistry
+      startBlock: 1750000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Schema
+      abis:
+        - name: SchemaRegistry
+          file: SchemaRegistry\abis\SchemaRegistry.json
+      eventHandlers:
+        - event: Registered(indexed bytes32,indexed address,string,address,bool)
+          handler: handleSchemaRegistered
+      file: SchemaRegistry\SchemaRegistry.wasm
+  - kind: ethereum
+    name: EAS
+    network: base
+    source:
+      address: "0x4200000000000000000000000000000000000021"
+      abi: EAS
+      startBlock: 1750000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Attestation
+        - Schema
+      abis:
+        - name: EAS
+          file: EAS\abis\EAS.json
+      eventHandlers:
+        - event: Attested(indexed address,indexed address,bytes32,indexed bytes32)
+          handler: handleAttested
+        - event: Revoked(indexed address,indexed address,bytes32,indexed bytes32)
+          handler: handleRevoked
+      file: EAS\EAS.wasm

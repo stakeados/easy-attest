@@ -1,0 +1,8 @@
+subgraph/generated/
+subgraph/src/
+scripts/
+.next/
+node_modules/
+lint_report.txt
+next-env.d.ts
+check-exports.js

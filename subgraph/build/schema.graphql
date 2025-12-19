@@ -1,0 +1,25 @@
+type Schema @entity {
+  id: ID! # Schema UID
+  schema: String!
+  creator: Bytes!
+  resolver: Bytes!
+  revocable: Boolean!
+  timestamp: BigInt!
+  txHash: Bytes!
+  attestationCount: Int!
+  attestations: [Attestation!]! @derivedFrom(field: "schema")
+}
+
+type Attestation @entity {
+  id: ID! # Attestation UID
+  schema: Schema!
+  attester: Bytes!
+  recipient: Bytes!
+  time: BigInt!
+  expirationTime: BigInt!
+  revocationTime: BigInt!
+  refUID: Bytes!
+  data: Bytes!
+  txHash: Bytes!
+  revoked: Boolean!
+}
