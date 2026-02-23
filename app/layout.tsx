@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { LayoutContent } from '@/components/layout-content';
+import Script from 'next/script';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
   },
 };
 
-import Script from 'next/script';
+
 
 export default function RootLayout({
   children,
@@ -53,6 +54,19 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200`}>
         <Script src="/env-config.js" strategy="beforeInteractive" />
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-0G2J7D7H7N"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-0G2J7D7H7N');
+          `}
+        </Script>
         <Providers>
           <LayoutContent>{children}</LayoutContent>
         </Providers>

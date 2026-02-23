@@ -339,6 +339,34 @@ export interface Translations {
       };
     };
   };
+  agents: {
+    badge: string;
+    title: string;
+    subtitle: string;
+    downloadSkill: string;
+    viewGithub: string;
+    contractsTitle: string;
+    methodsTitle: string;
+    method1Title: string;
+    method1Desc: string;
+    method2Title: string;
+    method2Desc: string;
+    method3Title: string;
+    method3Desc: string;
+    typesTitle: string;
+    codeTitle: string;
+    ctaTitle: string;
+    ctaSubtitle: string;
+    tagNoCode: string;
+    tagBrowser: string;
+    tagFarcaster: string;
+    tagNoWallet: string;
+    tagNoGas: string;
+    tagProgrammatic: string;
+    tagFullControl: string;
+    tagAgentSigning: string;
+    tagEscrowReady: string;
+  };
   footer: {
     builtWith: string;
     forCommunity: string;
