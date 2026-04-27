@@ -11,6 +11,7 @@ A no-code decentralized application for creating and managing onchain attestatio
 - **Schema Builder**: Create custom attestation schemas without code
 - **Attestation Generator**: Generate attestations for others using existing schemas
 - **User Dashboard**: View attestations received and given
+- **AI Agent Integration**: EasyAttest as a skill for AI agents (SDK, GraphQL and SKILL.md support)
 - **Mobile-First Design**: Optimized for mobile and desktop experiences
 
 ## Tech Stack
@@ -120,6 +121,12 @@ This project is tailored for deployment on modern VPS solutions using Docker.
 
 ### 🚀 Deploy on Dokploy (VPS)
 For detailed instructions on how to deploy this application on your own VPS using Dokploy, please refer to the **[Dokploy Deployment Guide](./docs/deployment.md)**.
+
+## AI Agents
+
+EasyAttest is designed to be agent-friendly. AI agents can integrate EasyAttest as a skill using the provided [SKILL.md](./agents/SKILL.md) or via the EAS SDK.
+
+For more details on integration methods (GraphQL, SDK, No-Code), visit the **[Agents Page](https://easyattest.xyz/agents)**.
 
 ## User Guides
 
