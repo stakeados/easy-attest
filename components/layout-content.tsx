@@ -62,6 +62,12 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
                 >
                   {t('navigation.docs')}
                 </Link>
+                <Link
+                  href="/agents"
+                  className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap"
+                >
+                  {t('navigation.agents')}
+                </Link>
               </nav>
             </div>
 
@@ -142,6 +148,13 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {t('navigation.docs')}
+              </Link>
+              <Link
+                href="/agents"
+                className="block px-4 py-3 text-base text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors min-h-[44px] flex items-center"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {t('navigation.agents')}
               </Link>
             </nav>
           )}

@@ -28,6 +28,7 @@ export const en: Translations = {
     discoverSchemas: 'Discover Schemas',
     dashboard: 'Dashboard',
     docs: 'Docs',
+    agents: 'Agents',
   },
   attestation: {
     form: {

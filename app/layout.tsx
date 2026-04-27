@@ -25,6 +25,7 @@ export const metadata: Metadata = {
       'Create and manage onchain attestations on Base using Ethereum Attestation Service',
   },
   other: {
+    'talentapp:project_verification': 'acb2f21edcc391d9c35bf1286a9671dbc2ddb003c3482342e16883bbac008fb454ee1e7b0a9cc4191bccd99b01c85669c98e477ce6148ebb3b70ff884bfb795b',
     'base:app_id': '6938b08c8a7c4e55fec73cc7',
     'fc:frame': JSON.stringify({
       version: 'next',
