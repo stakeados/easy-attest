@@ -64,6 +64,21 @@ export function generateSchemaString(fields: SchemaField[]): string {
   return fields.map((field) => `${field.type} ${field.name}`).join(', ');
 }
 
+// The EAS SDK wraps the underlying ethers response, and the tx hash surfaces in
+// slightly different places depending on the connector. This shape captures the
+// known locations so the cast lives in one place instead of scattered `as any`.
+interface EASTransactionLike {
+  hash?: string;
+  tx?: { hash?: string };
+  receipt?: { hash?: string; transactionHash?: string };
+  wait(): Promise<unknown>;
+}
+
+function extractTxHash(transaction: unknown): string {
+  const t = transaction as EASTransactionLike;
+  return t?.hash || t?.tx?.hash || '';
+}
+
 // Register a new schema
 export async function registerSchema(
   signer: Signer,
@@ -89,7 +104,7 @@ export async function registerSchema(
 
     return {
       schemaUID,
-      txHash: (transaction as any).tx?.hash || '',
+      txHash: extractTxHash(transaction),
     };
   } catch (error) {
     throw handleTransactionError(error);
@@ -133,10 +148,10 @@ export async function createAttestation(
       },
     });
 
-    // Capture hash immediately if possible
-    // Note: EAS SDK returns a ContractTransactionResponse which wraps the provider response
-    const txResponse = transaction as any;
-    let txHash = txResponse.hash || txResponse.tx?.hash || '';
+    // Capture hash immediately if possible. The EAS SDK returns a wrapper around
+    // the provider response, so the hash may not be populated until the receipt.
+    const txInfo = transaction as unknown as EASTransactionLike;
+    let txHash = extractTxHash(transaction);
 
     // Wait returns the attestation UID directly
     const attestationUID = await transaction.wait();
@@ -147,7 +162,9 @@ export async function createAttestation(
 
     // Ensure we have the hash from the receipt if it wasn't available initially
     if (!txHash) {
-      const receipt = txResponse.receipt || (await txResponse.wait());
+      const receipt = (txInfo.receipt ?? (await txInfo.wait())) as
+        | { hash?: string; transactionHash?: string }
+        | undefined;
       txHash = receipt?.hash || receipt?.transactionHash || '';
     }
 
@@ -206,6 +223,27 @@ export async function encodeAttestationRequest(
   };
 }
 
+export const ZERO_BYTES32 =
+  '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+// Normalize a user-supplied value for a `bytes32` schema field.
+// - Empty/undefined/null -> the zero hash.
+// - A 20-byte address (0x + 40 hex) -> left-padded to 32 bytes, matching the
+//   EVM convention for storing an address inside a word. This is the encoding
+//   already used by attestations in production, so it must stay stable.
+// - Anything else is passed through untouched.
+export function padBytes32Value(value: unknown): unknown {
+  if (value === '' || value === undefined || value === null) {
+    return ZERO_BYTES32;
+  }
+
+  if (typeof value === 'string' && value.startsWith('0x') && value.length === 42) {
+    return '0x000000000000000000000000' + value.slice(2);
+  }
+
+  return value;
+}
+
 // Encode attestation data based on schema
 function encodeAttestationData(
   data: Record<string, any>,
@@ -215,53 +253,23 @@ function encodeAttestationData(
   const schemaFields = parseSchemaString(schemaString);
 
   const encodedValues = schemaFields.map((field) => {
-    const value = data[field.name];
+    let value = data[field.name];
 
-    // Handle boolean values explicitly
     if (field.type === 'bool') {
-      return {
-        name: field.name,
-        type: field.type,
-        value: Boolean(value),
-      };
-    }
-
-    // Handle bytes32 empty values
-    if (field.type === 'bytes32') {
-      if (value === '' || value === undefined || value === null) {
-        return {
-          name: field.name,
-          type: field.type,
-          value: '0x0000000000000000000000000000000000000000000000000000000000000000',
-        };
-      }
-      // Auto-pad address to bytes32 if user inputs an address
-      if (typeof value === 'string' && value.startsWith('0x') && value.length === 42) {
-        // Pad left with zeros to make it 32 bytes (64 hex chars + 0x)
-        // Address is 20 bytes (40 hex chars). We need 12 bytes (24 zeros) padding.
-        // Actually standard padding for bytes32 is usually right-padded for strings or left-padded for numbers/addresses?
-        // EAS expects bytes32. If it's an ID, it's usually just the bytes.
-        // If we treat it as a number/address, we usually left-pad.
-        return {
-          name: field.name,
-          type: field.type,
-          value: '0x000000000000000000000000' + value.slice(2),
-        };
-      }
+      value = Boolean(value);
+    } else if (field.type === 'bytes32') {
+      value = padBytes32Value(value);
     }
 
     return {
       name: field.name,
       type: field.type,
-      value: value,
+      value,
     };
   });
 
   return encoder.encodeData(encodedValues);
 }
-
-// InferTypeFromValue is no longer needed but keeping it if used elsewhere, 
-// though it seems it was only used here. I'll remove it to clean up.
 
 // Get schema details from the registry
 export async function getSchemaDetails(

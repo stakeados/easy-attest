@@ -6,8 +6,6 @@ const SUBGRAPH_URL =
   // Users can override this with their own API key in .env.local
   'https://api.studio.thegraph.com/query/1715659/easy-attest/version/latest';
 
-console.log('[Subgraph] Configured URL:', SUBGRAPH_URL);
-
 const isConfigured = !!SUBGRAPH_URL && !SUBGRAPH_URL.includes('your-subgraph');
 
 export interface SubgraphAttestation {
@@ -37,170 +35,117 @@ interface GraphQLResponse<T> {
   errors?: Array<{ message: string }>;
 }
 
-// Query attestations received by an address
-export async function queryAttestationsReceived(
-  recipient: Address,
-  options?: {
-    schemaUID?: string;
-    startDate?: string;
-    endDate?: string;
-    sortBy?: 'date-desc' | 'date-asc';
-    first?: number;
-    skip?: number;
-  }
-): Promise<SubgraphAttestation[]> {
-  const { schemaUID, startDate, endDate, sortBy = 'date-desc', first = 100, skip = 0 } = options || {};
+interface AttestationQueryOptions {
+  schemaUID?: string;
+  startDate?: string;
+  endDate?: string;
+  sortBy?: 'date-desc' | 'date-asc';
+  first?: number;
+  skip?: number;
+}
 
+// Execute a GraphQL query against the subgraph using parameterized variables.
+// Passing values as `variables` (instead of interpolating them into the query
+// string) avoids GraphQL injection and keeps the query shape cacheable.
+async function executeQuery<T>(
+  query: string,
+  variables: Record<string, unknown>
+): Promise<T> {
   if (!isConfigured) {
     throw new Error('Subgraph URL is not configured. Please set NEXT_PUBLIC_SUBGRAPH_URL.');
   }
-
-  // Build where clause
-  const whereConditions: string[] = [`recipient: "${recipient.toLowerCase()}"`];
-
-  if (schemaUID) {
-    whereConditions.push(`schema: "${schemaUID.toLowerCase()}"`);
-  }
-
-  if (startDate) {
-    const timestamp = Math.floor(new Date(startDate).getTime() / 1000);
-    whereConditions.push(`time_gte: "${timestamp}"`);
-  }
-
-  if (endDate) {
-    const timestamp = Math.floor(new Date(endDate).getTime() / 1000);
-    whereConditions.push(`time_lte: "${timestamp}"`);
-  }
-
-  const whereClause = whereConditions.length > 0 ? `where: { ${whereConditions.join(', ')} }` : '';
-  const orderDirection = sortBy === 'date-desc' ? 'desc' : 'asc';
-
-  const query = `
-    query {
-      attestations(
-        ${whereClause}
-        orderBy: time
-        orderDirection: ${orderDirection}
-        first: ${first}
-        skip: ${skip}
-      ) {
-        id
-
-        attester
-        recipient
-        time
-        data
-        txHash
-        revoked
-      }
-    }
-  `;
-
-  console.log(`Fetching received attestations from: ${SUBGRAPH_URL} for recipient: ${recipient}`);
 
   const response = await fetch(SUBGRAPH_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, variables }),
   });
 
   if (!response.ok) {
-    console.error(`Subgraph request failed: ${response.status} ${response.statusText}`);
     throw new Error(`Subgraph request failed: ${response.statusText}`);
   }
 
-  const result: GraphQLResponse<{ attestations: SubgraphAttestation[] }> = await response.json();
+  const result: GraphQLResponse<T> = await response.json();
 
   if (result.errors) {
-    console.warn(`GraphQL errors: ${result.errors.map((e) => e.message).join(', ')}`);
+    throw new Error(`GraphQL errors: ${result.errors.map((e) => e.message).join(', ')}`);
   }
 
-  return result.data?.attestations || [];
+  return result.data as T;
+}
+
+const ATTESTATION_FIELDS = `
+  id
+  attester
+  recipient
+  time
+  data
+  txHash
+  revoked
+`;
+
+// Shared query for attestations filtered by either recipient or attester.
+async function queryAttestationsBy(
+  role: 'recipient' | 'attester',
+  address: Address,
+  options?: AttestationQueryOptions
+): Promise<SubgraphAttestation[]> {
+  const { schemaUID, startDate, endDate, sortBy = 'date-desc', first = 100, skip = 0 } = options || {};
+
+  const where: Record<string, unknown> = {
+    [role]: address.toLowerCase(),
+  };
+
+  if (schemaUID) {
+    where.schema = schemaUID.toLowerCase();
+  }
+  if (startDate) {
+    where.time_gte = String(Math.floor(new Date(startDate).getTime() / 1000));
+  }
+  if (endDate) {
+    where.time_lte = String(Math.floor(new Date(endDate).getTime() / 1000));
+  }
+
+  const query = `
+    query Attestations($where: Attestation_filter, $orderDirection: OrderDirection, $first: Int, $skip: Int) {
+      attestations(
+        where: $where
+        orderBy: time
+        orderDirection: $orderDirection
+        first: $first
+        skip: $skip
+      ) {
+        ${ATTESTATION_FIELDS}
+      }
+    }
+  `;
+
+  const data = await executeQuery<{ attestations: SubgraphAttestation[] }>(query, {
+    where,
+    orderDirection: sortBy === 'date-desc' ? 'desc' : 'asc',
+    first,
+    skip,
+  });
+
+  return data?.attestations || [];
+}
+
+// Query attestations received by an address
+export function queryAttestationsReceived(
+  recipient: Address,
+  options?: AttestationQueryOptions
+): Promise<SubgraphAttestation[]> {
+  return queryAttestationsBy('recipient', recipient, options);
 }
 
 // Query attestations given by an address
-export async function queryAttestationsGiven(
+export function queryAttestationsGiven(
   attester: Address,
-  options?: {
-    schemaUID?: string;
-    startDate?: string;
-    endDate?: string;
-    sortBy?: 'date-desc' | 'date-asc';
-    first?: number;
-    skip?: number;
-  }
+  options?: AttestationQueryOptions
 ): Promise<SubgraphAttestation[]> {
-  const { schemaUID, startDate, endDate, sortBy = 'date-desc', first = 100, skip = 0 } = options || {};
-
-  if (!isConfigured) {
-    throw new Error('Subgraph URL is not configured. Please set NEXT_PUBLIC_SUBGRAPH_URL.');
-  }
-
-  // Build where clause
-  const whereConditions: string[] = [`attester: "${attester.toLowerCase()}"`];
-
-  if (schemaUID) {
-    whereConditions.push(`schema: "${schemaUID.toLowerCase()}"`);
-  }
-
-  if (startDate) {
-    const timestamp = Math.floor(new Date(startDate).getTime() / 1000);
-    whereConditions.push(`time_gte: "${timestamp}"`);
-  }
-
-  if (endDate) {
-    const timestamp = Math.floor(new Date(endDate).getTime() / 1000);
-    whereConditions.push(`time_lte: "${timestamp}"`);
-  }
-
-  const whereClause = whereConditions.length > 0 ? `where: { ${whereConditions.join(', ')} }` : '';
-  const orderDirection = sortBy === 'date-desc' ? 'desc' : 'asc';
-
-  const query = `
-    query {
-      attestations(
-        ${whereClause}
-        orderBy: time
-        orderDirection: ${orderDirection}
-        first: ${first}
-        skip: ${skip}
-      ) {
-        id
-
-        attester
-        recipient
-        time
-        data
-        txHash
-        revoked
-      }
-    }
-  `;
-
-  console.log(`Fetching given attestations from: ${SUBGRAPH_URL} for attester: ${attester}`);
-
-  const response = await fetch(SUBGRAPH_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query }),
-  });
-
-  if (!response.ok) {
-    console.error(`Subgraph request failed: ${response.status} ${response.statusText}`);
-    throw new Error(`Subgraph request failed: ${response.statusText}`);
-  }
-
-  const result: GraphQLResponse<{ attestations: SubgraphAttestation[] }> = await response.json();
-
-  if (result.errors) {
-    console.warn(`GraphQL errors: ${result.errors.map((e) => e.message).join(', ')}`);
-  }
-
-  return result.data?.attestations || [];
+  return queryAttestationsBy('attester', attester, options);
 }
 
 // Query all schemas
@@ -225,35 +170,26 @@ export async function querySchemas(
     orderDirection = 'desc',
   } = options || {};
 
-  console.log(`[Subgraph] querySchemas called with URL: ${SUBGRAPH_URL}`);
-
-  // Build where clause
-  const whereConditions: string[] = [];
+  const where: Record<string, unknown> = {};
 
   if (startDate) {
-    const timestamp = Math.floor(new Date(startDate).getTime() / 1000);
-    whereConditions.push(`timestamp_gte: "${timestamp}"`);
+    where.timestamp_gte = String(Math.floor(new Date(startDate).getTime() / 1000));
   }
-
   if (endDate) {
-    const timestamp = Math.floor(new Date(endDate).getTime() / 1000);
-    whereConditions.push(`timestamp_lte: "${timestamp}"`);
+    where.timestamp_lte = String(Math.floor(new Date(endDate).getTime() / 1000));
   }
-
   if (minAttestations !== undefined) {
-    whereConditions.push(`attestationCount_gte: ${minAttestations}`);
+    where.attestationCount_gte = minAttestations;
   }
-
-  const whereClause = whereConditions.length > 0 ? `where: { ${whereConditions.join(', ')} }` : '';
 
   const query = `
-    query {
+    query Schemas($where: Schema_filter, $orderBy: Schema_orderBy, $orderDirection: OrderDirection, $first: Int, $skip: Int) {
       schemas(
-        ${whereClause}
-        orderBy: ${orderBy}
-        orderDirection: ${orderDirection}
-        first: ${first}
-        skip: ${skip}
+        where: $where
+        orderBy: $orderBy
+        orderDirection: $orderDirection
+        first: $first
+        skip: $skip
       ) {
         id
         schema
@@ -264,23 +200,13 @@ export async function querySchemas(
     }
   `;
 
-  const response = await fetch(SUBGRAPH_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query }),
+  const data = await executeQuery<{ schemas: SubgraphSchema[] }>(query, {
+    where,
+    orderBy,
+    orderDirection,
+    first,
+    skip,
   });
 
-  if (!response.ok) {
-    throw new Error(`Subgraph request failed: ${response.statusText}`);
-  }
-
-  const result: GraphQLResponse<{ schemas: SubgraphSchema[] }> = await response.json();
-
-  if (result.errors) {
-    throw new Error(`GraphQL errors: ${result.errors.map((e) => e.message).join(', ')}`);
-  }
-
-  return result.data?.schemas || [];
+  return data?.schemas || [];
 }
