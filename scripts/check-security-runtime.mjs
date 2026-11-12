@@ -1,7 +1,7 @@
 // Fail a rebuild before it can publish a runtime below the reviewed security baseline.
-const fs = require('node:fs');
-const path = require('node:path');
-const { createRequire } = require('node:module');
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
 const root = process.cwd();
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const resolve = createRequire(path.join(root, 'package.json')).resolve;
